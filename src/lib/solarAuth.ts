@@ -17,9 +17,26 @@ export type KycSubmission = {
   dob: string;
   address: string;
   nin: string;
-  documents: { type: "ID" | "License" | "NIN" | "Passport"; name: string; size: number }[];
+  documents: Array<{
+    type: "ID" | "License" | "NIN" | "Passport" | "ProofOfAddress";
+    file: UploadedFile;
+  }>;
   status: "pending" | "approved" | "rejected";
   submittedAt: string;
+};
+
+export type UploadedFile = {
+  originalName: string;
+  mimeType: string;
+  size: number;
+  storagePath: string;
+  uploadedAt: string;
+};
+
+export type LoanAttachment = {
+  label: string;
+  description?: string | null;
+  file: UploadedFile;
 };
 
 export type LoanApplication = {
@@ -35,6 +52,7 @@ export type LoanApplication = {
   bank: string;
   monthlyIncome: number;
   purpose: string;
+  attachments?: LoanAttachment[];
   status: "submitted" | "under_review" | "approved" | "rejected";
   submittedAt: string;
 };
@@ -102,9 +120,12 @@ async function apiFetch<T>(path: string, init: RequestInit = {}, requiresAuth = 
   const token = authToken();
 
   const headers: Record<string, string> = {
-    "Content-Type": "application/json",
     ...(init.headers as Record<string, string> | undefined),
   };
+  const isFormDataBody = typeof FormData !== "undefined" && init.body instanceof FormData;
+  if (!isFormDataBody && !headers["Content-Type"]) {
+    headers["Content-Type"] = "application/json";
+  }
   if (requiresAuth && token) headers.Authorization = `Bearer ${token}`;
 
   try {
@@ -201,9 +222,42 @@ export const solarAuth = {
 };
 
 export const solarStore = {
+  async uploadFile(file: File): Promise<UploadedFile> {
+    if (file.size > 20 * 1024 * 1024) {
+      throw new Error("File exceeds 20MB limit.");
+    }
+    const formData = new FormData();
+    formData.append("file", file);
+    const result = await apiFetch<{ file: UploadedFile }>("/uploads", {
+      method: "POST",
+      body: formData,
+    });
+    return result.file;
+  },
+
   async listKyc(): Promise<KycSubmission[]> {
     const result = await apiFetch<{ item: any | null }>("/kyc");
     if (!result.item) return [];
+    const normalizedDocuments = Array.isArray(result.item.documents)
+      ? result.item.documents
+        .map((entry: any) => {
+          if (!entry || typeof entry !== "object") return null;
+          const file = entry.file && typeof entry.file === "object"
+            ? entry.file
+            : {
+              originalName: String(entry.name || "legacy-document"),
+              mimeType: String(entry.mimeType || "application/octet-stream"),
+              size: Number(entry.size || 0),
+              storagePath: String(entry.storagePath || ""),
+              uploadedAt: String(entry.uploadedAt || result.item.submittedAt || new Date().toISOString()),
+            };
+          return {
+            type: entry.type,
+            file,
+          };
+        })
+        .filter(Boolean)
+      : [];
     return [
       {
         id: result.item.id,
@@ -212,7 +266,7 @@ export const solarStore = {
         dob: result.item.dob,
         address: result.item.address,
         nin: result.item.nin,
-        documents: (result.item.documents || []) as KycSubmission["documents"],
+        documents: normalizedDocuments as KycSubmission["documents"],
         status: result.item.status,
         submittedAt: result.item.submittedAt,
       },
@@ -257,6 +311,18 @@ export const solarStore = {
       bank: item.bank || "",
       monthlyIncome: Number(item.monthlyIncome || 0),
       purpose: item.purpose || "",
+      attachments: Array.isArray(item.attachments)
+        ? item.attachments
+          .map((entry: any) => {
+            if (!entry || typeof entry !== "object" || !entry.file) return null;
+            return {
+              label: String(entry.label || "Attachment"),
+              description: entry.description ? String(entry.description) : null,
+              file: entry.file,
+            } as LoanAttachment;
+          })
+          .filter(Boolean) as LoanAttachment[]
+        : [],
       status: item.status,
       submittedAt: item.submittedAt,
     }));
@@ -280,6 +346,7 @@ export const solarStore = {
         bank: l.bank,
         monthlyIncome: l.monthlyIncome,
         purpose: l.purpose,
+        attachments: l.attachments || [],
       }),
     });
   },

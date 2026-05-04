@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { CalendarDays, Clock } from "lucide-react";
+import { CalendarDays, Clock, Loader2, MapPin } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Calendar } from "@/components/ui/calendar";
@@ -13,12 +13,17 @@ const SolarBooking = () => {
   const user = useSolarUser()!;
   const navigate = useNavigate();
   const [allBookings, setAllBookings] = useState<EnergyBooking[]>([]);
+  const [submitting, setSubmitting] = useState(false);
 
   const [range, setRange] = useState<DateRange | undefined>();
   const [form, setForm] = useState({
-    applicantName: user.fullName, phone: "",
-    startTime: "09:00", endTime: "17:00",
-    capacityKw: "", location: "", notes: "",
+    applicantName: user.fullName,
+    phone: "",
+    startTime: "09:00",
+    endTime: "17:00",
+    capacityKw: "",
+    location: "",
+    notes: "",
   });
 
   useEffect(() => {
@@ -36,13 +41,16 @@ const SolarBooking = () => {
     };
   }, []);
 
-  // Mark booked dates with a modifier so the calendar shows them.
   const bookedDates = useMemo(() => {
     const out: Date[] = [];
     for (const b of allBookings) {
-      const s = new Date(b.startDate); const e = new Date(b.endDate);
+      const s = new Date(b.startDate);
+      const e = new Date(b.endDate);
       const cur = new Date(s);
-      while (cur <= e) { out.push(new Date(cur)); cur.setDate(cur.getDate() + 1); }
+      while (cur <= e) {
+        out.push(new Date(cur));
+        cur.setDate(cur.getDate() + 1);
+      }
     }
     return out;
   }, [allBookings]);
@@ -53,10 +61,18 @@ const SolarBooking = () => {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!range?.from) { toast.error("Pick a start date"); return; }
-    if (!form.applicantName || !form.phone || !form.capacityKw || !form.location) { toast.error("Fill all required fields"); return; }
-    const start = range.from; const end = range.to ?? range.from;
+    if (!range?.from) {
+      toast.error("Pick a start date.");
+      return;
+    }
+    if (!form.applicantName || !form.phone || !form.capacityKw || !form.location) {
+      toast.error("Fill all required fields.");
+      return;
+    }
+    const start = range.from;
+    const end = range.to ?? range.from;
     try {
+      setSubmitting(true);
       await solarStore.submitBooking({
         userId: user.id,
         applicantName: form.applicantName,
@@ -69,16 +85,18 @@ const SolarBooking = () => {
         location: form.location,
         notes: form.notes || undefined,
       });
-      toast.success("Booking submitted for confirmation");
+      toast.success("Booking submitted for confirmation.");
       navigate("/subsidiaries/solar/dashboard");
     } catch (error: any) {
       toast.error(error?.message || "Booking submission failed");
+    } finally {
+      setSubmitting(false);
     }
   };
 
   return (
     <section className="section-py bg-background min-h-[calc(100vh-8.5rem)]">
-      <div className="container-px max-w-6xl">
+      <div className="container-px max-w-7xl">
         <div className="mb-8 flex items-center gap-4">
           <div className="h-12 w-12 grid place-items-center bg-primary/10 text-primary">
             <CalendarDays className="h-6 w-6" />
@@ -89,60 +107,68 @@ const SolarBooking = () => {
           </div>
         </div>
 
-        <div className="grid lg:grid-cols-2 gap-6">
+        <div className="grid lg:grid-cols-[1.1fr_0.9fr] gap-6">
           <div className="bg-surface border border-border p-6 shadow-card">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground mb-4">Pick Date Range</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground mb-4">Select Date Range</p>
             <Calendar
               mode="range"
               selected={range}
               onSelect={setRange}
-              numberOfMonths={1}
+              numberOfMonths={2}
               disabled={{ before: new Date() }}
               modifiers={{ booked: bookedDates }}
               modifiersClassNames={{ booked: "bg-destructive/15 text-destructive line-through" }}
               className={cn("p-3 pointer-events-auto")}
             />
-            <div className="mt-4 flex items-center justify-between text-xs text-muted-foreground">
-              <div className="flex items-center gap-3">
-                <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 bg-primary inline-block" /> Selected</span>
-                <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 bg-destructive/40 inline-block" /> Booked</span>
+            <div className="mt-4 grid md:grid-cols-3 gap-3 text-xs">
+              <div className="border border-border bg-background p-3">
+                <p className="text-muted-foreground">Duration</p>
+                <p className="font-semibold mt-1">{durationDays > 0 ? `${durationDays} day(s)` : "Not selected"}</p>
               </div>
-              <span>{durationDays > 0 ? `${durationDays} day(s)` : "—"}</span>
+              <div className="border border-border bg-background p-3">
+                <p className="text-muted-foreground">Start Date</p>
+                <p className="font-semibold mt-1">{range?.from ? new Date(range.from).toLocaleDateString() : "-"}</p>
+              </div>
+              <div className="border border-border bg-background p-3">
+                <p className="text-muted-foreground">End Date</p>
+                <p className="font-semibold mt-1">{range?.to ? new Date(range.to).toLocaleDateString() : range?.from ? new Date(range.from).toLocaleDateString() : "-"}</p>
+              </div>
             </div>
 
-            {allBookings.length > 0 && (
+            {allBookings.length > 0 ? (
               <div className="mt-6">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground mb-2">Existing bookings</p>
                 <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-                  {allBookings.slice(0, 8).map(b => (
+                  {allBookings.slice(0, 8).map((b) => (
                     <div key={b.id} className="text-xs border border-border bg-background p-2 flex justify-between">
-                      <span>{new Date(b.startDate).toLocaleDateString()} → {new Date(b.endDate).toLocaleDateString()}</span>
+                      <span>{new Date(b.startDate).toLocaleDateString()} to {new Date(b.endDate).toLocaleDateString()}</span>
                       <span className="text-muted-foreground">{b.capacityKw} kW</span>
                     </div>
                   ))}
                 </div>
               </div>
-            )}
+            ) : null}
           </div>
 
           <form onSubmit={submit} className="bg-surface border border-border p-6 shadow-card space-y-5">
-            <Field label="Full Name"><Input value={form.applicantName} onChange={e => setForm(s => ({ ...s, applicantName: e.target.value }))} className="h-11" /></Field>
-            <Field label="Phone"><Input value={form.phone} onChange={e => setForm(s => ({ ...s, phone: e.target.value }))} placeholder="+234..." className="h-11" /></Field>
+            <Field label="Full Name"><Input value={form.applicantName} onChange={(e) => setForm((s) => ({ ...s, applicantName: e.target.value }))} className="h-11" /></Field>
+            <Field label="Phone"><Input value={form.phone} onChange={(e) => setForm((s) => ({ ...s, phone: e.target.value }))} placeholder="+234..." className="h-11" /></Field>
 
             <div className="grid grid-cols-2 gap-4">
               <Field label={<span className="flex items-center gap-1.5"><Clock className="h-3 w-3" /> Start time</span>}>
-                <Input type="time" value={form.startTime} onChange={e => setForm(s => ({ ...s, startTime: e.target.value }))} className="h-11" />
+                <Input type="time" value={form.startTime} onChange={(e) => setForm((s) => ({ ...s, startTime: e.target.value }))} className="h-11" />
               </Field>
               <Field label={<span className="flex items-center gap-1.5"><Clock className="h-3 w-3" /> End time</span>}>
-                <Input type="time" value={form.endTime} onChange={e => setForm(s => ({ ...s, endTime: e.target.value }))} className="h-11" />
+                <Input type="time" value={form.endTime} onChange={(e) => setForm((s) => ({ ...s, endTime: e.target.value }))} className="h-11" />
               </Field>
             </div>
 
-            <Field label="Required Capacity (kW)"><Input type="number" min="0" step="0.1" value={form.capacityKw} onChange={e => setForm(s => ({ ...s, capacityKw: e.target.value }))} placeholder="e.g. 10" className="h-11" /></Field>
-            <Field label="Location"><Input value={form.location} onChange={e => setForm(s => ({ ...s, location: e.target.value }))} placeholder="Event/site address" className="h-11" /></Field>
-            <Field label="Notes (optional)"><Textarea value={form.notes} onChange={e => setForm(s => ({ ...s, notes: e.target.value }))} rows={3} placeholder="Special requirements, access info, etc." /></Field>
+            <Field label="Required Capacity (kW)"><Input type="number" min="0" step="0.1" value={form.capacityKw} onChange={(e) => setForm((s) => ({ ...s, capacityKw: e.target.value }))} placeholder="e.g. 10" className="h-11" /></Field>
+            <Field label={<span className="flex items-center gap-1.5"><MapPin className="h-3 w-3" /> Location</span>}><Input value={form.location} onChange={(e) => setForm((s) => ({ ...s, location: e.target.value }))} placeholder="Event/site address" className="h-11" /></Field>
+            <Field label="Notes (optional)"><Textarea value={form.notes} onChange={(e) => setForm((s) => ({ ...s, notes: e.target.value }))} rows={3} placeholder="Special requirements, access info, etc." /></Field>
 
-            <button type="submit" className="w-full inline-flex items-center justify-center gap-2 bg-primary hover:bg-primary-glow text-primary-foreground h-11 px-8 text-xs font-semibold uppercase tracking-[0.15em] transition-smooth shadow-elegant">
+            <button type="submit" disabled={submitting} className="w-full inline-flex items-center justify-center gap-2 bg-primary hover:bg-primary-glow text-primary-foreground h-11 px-8 text-xs font-semibold uppercase tracking-[0.15em] transition-smooth shadow-elegant disabled:opacity-60">
+              {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
               Submit Booking
             </button>
           </form>

@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { ShieldCheck, FileText, CalendarDays, ArrowRight, CheckCircle2, Clock, XCircle, User2 } from "lucide-react";
+import { ShieldCheck, FileText, CalendarDays, ArrowRight, CheckCircle2, Clock, XCircle, User2, Bell } from "lucide-react";
 import { KycSubmission, LoanApplication, EnergyBooking, PortalNotification, useSolarUser, solarStore } from "@/lib/solarAuth";
 
 const StatusBadge = ({ status }: { status: string }) => {
@@ -47,17 +47,34 @@ const SolarDashboard = () => {
     };
   }, [user.id]);
 
+  const unreadCount = useMemo(
+    () => notifications.filter((item) => !item.isRead).length,
+    [notifications],
+  );
+
   return (
     <section className="section-py bg-background min-h-[calc(100vh-8.5rem)]">
-      <div className="container-px max-w-6xl">
-        <div className="mb-10">
-          <p className="eyebrow text-primary mb-3">My Portal</p>
-          <h1 className="text-3xl md:text-5xl font-bold mb-2">Welcome, {user.fullName}</h1>
-          <p className="text-muted-foreground">Manage your profile, applications and bookings.</p>
+      <div className="container-px max-w-7xl">
+        <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <p className="eyebrow text-primary mb-2">My Portal</p>
+            <h1 className="text-3xl md:text-5xl font-bold mb-2">Welcome, {user.fullName}</h1>
+            <p className="text-muted-foreground">Track KYC, loan applications, and energy bookings in one place.</p>
+          </div>
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <Bell className="h-4 w-4" />
+            {unreadCount} unread notification(s)
+          </div>
         </div>
 
-        {/* Profile + KYC summary */}
-        <div className="grid lg:grid-cols-3 gap-6 mb-10">
+        <div className="grid md:grid-cols-4 gap-4 mb-8">
+          <StatCard title="KYC Status" value={kyc ? "Submitted" : "Not Submitted"} />
+          <StatCard title="Loan Applications" value={String(loans.length)} />
+          <StatCard title="Energy Bookings" value={String(bookings.length)} />
+          <StatCard title="Unread Alerts" value={String(unreadCount)} />
+        </div>
+
+        <div className="grid lg:grid-cols-3 gap-6 mb-8">
           <div className="lg:col-span-1 bg-surface border border-border p-6 shadow-card">
             <div className="flex items-center gap-3 mb-5">
               <div className="h-12 w-12 grid place-items-center bg-primary/10 text-primary">
@@ -87,11 +104,11 @@ const SolarDashboard = () => {
                   <p className="font-semibold">{kyc ? "Submitted" : "Not submitted"}</p>
                 </div>
               </div>
-              {kyc && <StatusBadge status={kyc.status} />}
+              {kyc ? <StatusBadge status={kyc.status} /> : null}
             </div>
             {kyc ? (
               <div className="text-sm text-muted-foreground space-y-1.5">
-                <p><span className="text-foreground font-medium">{kyc.documents.length}</span> document(s) uploaded · NIN: {kyc.nin}</p>
+                <p><span className="text-foreground font-medium">{kyc.documents.length}</span> document(s) uploaded - NIN: {kyc.nin}</p>
                 <p>Submitted {new Date(kyc.submittedAt).toLocaleString()}</p>
                 <Link to="/subsidiaries/solar/kyc" className="inline-flex items-center gap-1 text-primary hover:text-primary-glow text-xs font-semibold uppercase tracking-[0.15em] mt-2">Update KYC <ArrowRight className="h-3 w-3" /></Link>
               </div>
@@ -106,25 +123,23 @@ const SolarDashboard = () => {
           </div>
         </div>
 
-        {/* Service cards */}
-        <div className="grid md:grid-cols-2 gap-6 mb-10">
+        <div className="grid md:grid-cols-2 gap-6 mb-8">
           <ServiceCard
             icon={<FileText className="h-6 w-6" />}
             title="Solar Loan Application"
-            desc="Apply for financing tailored to your solar capacity, collateral and use-case."
+            desc="Apply for financing with your loan details and supporting files."
             cta="Apply for Loan"
             to="/subsidiaries/solar/loan"
           />
           <ServiceCard
             icon={<CalendarDays className="h-6 w-6" />}
             title="Mobile Energy Booking"
-            desc="Reserve a mobile solar energy unit for your event, project or temporary site."
+            desc="Reserve mobile solar units for events, sites, and temporary operations."
             cta="Book Energy"
             to="/subsidiaries/solar/booking"
           />
         </div>
 
-        {/* My loans */}
         <SectionList title="Notifications" empty="No notifications yet.">
           {notifications.map((item) => (
             <button
@@ -144,12 +159,11 @@ const SolarDashboard = () => {
           ))}
         </SectionList>
 
-        {/* My loans */}
         <SectionList title="My Loan Applications" empty="No applications yet.">
-          {loans.map(l => (
+          {loans.map((l) => (
             <div key={l.id} className="flex items-center justify-between border border-border bg-background p-4">
               <div>
-                <p className="font-semibold text-sm">${l.amount.toLocaleString()} · {l.capacityKw} kW · {l.tenureMonths}mo</p>
+                <p className="font-semibold text-sm">NGN {l.amount.toLocaleString()} - {l.capacityKw} kW - {l.tenureMonths} months</p>
                 <p className="text-xs text-muted-foreground">{new Date(l.submittedAt).toLocaleString()}</p>
               </div>
               <StatusBadge status={l.status} />
@@ -157,13 +171,12 @@ const SolarDashboard = () => {
           ))}
         </SectionList>
 
-        {/* My bookings */}
         <SectionList title="My Energy Bookings" empty="No bookings yet.">
-          {bookings.map(b => (
+          {bookings.map((b) => (
             <div key={b.id} className="flex items-center justify-between border border-border bg-background p-4">
               <div>
-                <p className="font-semibold text-sm">{b.capacityKw} kW · {b.location}</p>
-                <p className="text-xs text-muted-foreground">{new Date(b.startDate).toLocaleDateString()} {b.startTime} → {new Date(b.endDate).toLocaleDateString()} {b.endTime}</p>
+                <p className="font-semibold text-sm">{b.capacityKw} kW - {b.location}</p>
+                <p className="text-xs text-muted-foreground">{new Date(b.startDate).toLocaleDateString()} {b.startTime} to {new Date(b.endDate).toLocaleDateString()} {b.endTime}</p>
               </div>
               <StatusBadge status={b.status} />
             </div>
@@ -173,6 +186,13 @@ const SolarDashboard = () => {
     </section>
   );
 };
+
+const StatCard = ({ title, value }: { title: string; value: string }) => (
+  <div className="bg-surface border border-border p-4 shadow-card">
+    <p className="text-[11px] uppercase tracking-[0.15em] text-muted-foreground">{title}</p>
+    <p className="text-2xl font-bold mt-2">{value}</p>
+  </div>
+);
 
 const ServiceCard = ({ icon, title, desc, cta, to }: { icon: React.ReactNode; title: string; desc: string; cta: string; to: string }) => (
   <Link to={to} className="group bg-surface border border-border p-7 shadow-card hover:border-primary transition-smooth block">
@@ -184,17 +204,20 @@ const ServiceCard = ({ icon, title, desc, cta, to }: { icon: React.ReactNode; ti
 );
 
 const SectionList = ({ title, empty, children }: { title: string; empty: string; children: React.ReactNode }) => {
-  const arr = Array.isArray(children) ? children : [children];
+  const entries = Array.isArray(children) ? children.filter(Boolean) : children ? [children] : [];
   return (
     <div className="mb-10">
       <h2 className="text-lg font-bold mb-4">{title}</h2>
-      {arr.length === 0 ? (
+      {entries.length === 0 ? (
         <p className="text-sm text-muted-foreground bg-surface border border-border p-6">{empty}</p>
       ) : (
-        <div className="space-y-3">{children}</div>
+        <div className="space-y-3">{entries}</div>
       )}
     </div>
   );
 };
 
 export default SolarDashboard;
+
+
+
