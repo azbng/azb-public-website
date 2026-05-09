@@ -51,6 +51,22 @@ const SolarDashboard = () => {
     () => notifications.filter((item) => !item.isRead).length,
     [notifications],
   );
+  const loanPendingCount = useMemo(
+    () => loans.filter((item) => item.status === "submitted" || item.status === "under_review").length,
+    [loans],
+  );
+  const loanApprovedCount = useMemo(
+    () => loans.filter((item) => item.status === "approved").length,
+    [loans],
+  );
+  const bookingPendingCount = useMemo(
+    () => bookings.filter((item) => item.status === "pending").length,
+    [bookings],
+  );
+  const bookingConfirmedCount = useMemo(
+    () => bookings.filter((item) => item.status === "confirmed").length,
+    [bookings],
+  );
 
   return (
     <section className="section-py bg-background min-h-[calc(100vh-8.5rem)]">
@@ -72,6 +88,13 @@ const SolarDashboard = () => {
           <StatCard title="Loan Applications" value={String(loans.length)} />
           <StatCard title="Energy Bookings" value={String(bookings.length)} />
           <StatCard title="Unread Alerts" value={String(unreadCount)} />
+        </div>
+
+        <div className="grid md:grid-cols-4 gap-4 mb-8">
+          <StatCard title="Loans Pending" value={String(loanPendingCount)} />
+          <StatCard title="Loans Approved" value={String(loanApprovedCount)} />
+          <StatCard title="Bookings Pending" value={String(bookingPendingCount)} />
+          <StatCard title="Bookings Confirmed" value={String(bookingConfirmedCount)} />
         </div>
 
         <div className="grid lg:grid-cols-3 gap-6 mb-8">
@@ -126,16 +149,16 @@ const SolarDashboard = () => {
         <div className="grid md:grid-cols-2 gap-6 mb-8">
           <ServiceCard
             icon={<FileText className="h-6 w-6" />}
-            title="Solar Loan Application"
-            desc="Apply for financing with your loan details and supporting files."
-            cta="Apply for Loan"
+            title="Solar Loan"
+            desc="Apply for financing or review application progress."
+            cta="Manage Loans"
             to="/subsidiaries/solar/loan"
           />
           <ServiceCard
             icon={<CalendarDays className="h-6 w-6" />}
-            title="Mobile Energy Booking"
-            desc="Reserve mobile solar units for events, sites, and temporary operations."
-            cta="Book Energy"
+            title="Energy Booking"
+            desc="Create a reservation and track booking approvals."
+            cta="Manage Bookings"
             to="/subsidiaries/solar/booking"
           />
         </div>

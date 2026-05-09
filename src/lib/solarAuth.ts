@@ -18,7 +18,7 @@ export type KycSubmission = {
   address: string;
   nin: string;
   documents: Array<{
-    type: "ID" | "License" | "NIN" | "Passport" | "ProofOfAddress";
+    type: "ID" | "License" | "NIN" | "Passport" | "VotersCard" | "ProofOfAddress";
     file: UploadedFile;
   }>;
   status: "pending" | "approved" | "rejected";

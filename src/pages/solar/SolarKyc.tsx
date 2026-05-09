@@ -1,22 +1,21 @@
-﻿import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Upload, X, ShieldCheck, FileText, Loader2, CheckCircle2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { UploadedFile, useSolarUser, solarStore } from "@/lib/solarAuth";
 
-type DocType = "ID" | "License" | "NIN" | "Passport" | "ProofOfAddress";
+type IdentityType = "NIN" | "License" | "Passport" | "VotersCard";
 
-const DOC_TYPES: Array<{ type: DocType; label: string; required?: boolean }> = [
-  { type: "ID", label: "ID" },
-  { type: "License", label: "License" },
-  { type: "NIN", label: "NIN" },
-  { type: "Passport", label: "Passport" },
-  { type: "ProofOfAddress", label: "Proof of Address", required: true },
+const ID_OPTIONS: Array<{ value: IdentityType; label: string }> = [
+  { value: "NIN", label: "NIN" },
+  { value: "License", label: "Driver's License" },
+  { value: "Passport", label: "Passport" },
+  { value: "VotersCard", label: "Voter's Card" },
 ];
-
-const identityTypes: DocType[] = ["ID", "License", "NIN", "Passport"];
 
 const SolarKyc = () => {
   const user = useSolarUser()!;
@@ -25,11 +24,14 @@ const SolarKyc = () => {
     fullName: user.fullName,
     dob: "",
     address: "",
-    nin: "",
+    identityType: "NIN" as IdentityType,
+    identityNumber: "",
   });
-  const [docsByType, setDocsByType] = useState<Partial<Record<DocType, UploadedFile>>>({});
-  const [uploadingType, setUploadingType] = useState<DocType | null>(null);
+  const [identityFile, setIdentityFile] = useState<UploadedFile | null>(null);
+  const [proofOfAddressFile, setProofOfAddressFile] = useState<UploadedFile | null>(null);
+  const [uploading, setUploading] = useState<"identity" | "proof" | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [existingStatus, setExistingStatus] = useState<"pending" | "approved" | "rejected" | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -37,17 +39,24 @@ const SolarKyc = () => {
       .myKyc(user.id)
       .then((existing) => {
         if (!mounted || !existing) return;
-        setForm({
+        setForm((prev) => ({
+          ...prev,
           fullName: existing.fullName || user.fullName,
           dob: existing.dob || "",
           address: existing.address || "",
-          nin: existing.nin || "",
-        });
-        const nextDocs: Partial<Record<DocType, UploadedFile>> = {};
-        for (const entry of existing.documents || []) {
-          nextDocs[entry.type] = entry.file;
+          identityNumber: existing.nin || "",
+        }));
+        setExistingStatus(existing.status);
+
+        const idDoc = existing.documents.find((entry) =>
+          entry.type === "NIN" || entry.type === "License" || entry.type === "Passport" || entry.type === "VotersCard",
+        );
+        if (idDoc) {
+          setForm((prev) => ({ ...prev, identityType: idDoc.type as IdentityType }));
+          setIdentityFile(idDoc.file);
         }
-        setDocsByType(nextDocs);
+        const poa = existing.documents.find((entry) => entry.type === "ProofOfAddress");
+        if (poa) setProofOfAddressFile(poa.file);
       })
       .catch(() => undefined);
     return () => {
@@ -55,12 +64,7 @@ const SolarKyc = () => {
     };
   }, [user.fullName, user.id]);
 
-  const identityUploaded = useMemo(
-    () => identityTypes.some((type) => Boolean(docsByType[type])),
-    [docsByType],
-  );
-
-  const uploadDoc = (type: DocType) => async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const uploadDoc = (slot: "identity" | "proof") => async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > 20 * 1024 * 1024) {
@@ -69,51 +73,51 @@ const SolarKyc = () => {
       return;
     }
     try {
-      setUploadingType(type);
+      setUploading(slot);
       const uploaded = await solarStore.uploadFile(file);
-      setDocsByType((prev) => ({ ...prev, [type]: uploaded }));
-      toast.success(`${type === "ProofOfAddress" ? "Proof of Address" : type} uploaded`);
+      if (slot === "identity") {
+        setIdentityFile(uploaded);
+        toast.success("Identity document uploaded.");
+      } else {
+        setProofOfAddressFile(uploaded);
+        toast.success("Proof of address uploaded.");
+      }
     } catch (error: any) {
       toast.error(error?.message || "Upload failed");
     } finally {
-      setUploadingType(null);
+      setUploading(null);
       e.target.value = "";
     }
   };
 
-  const removeDoc = (type: DocType) => {
-    setDocsByType((prev) => {
-      const next = { ...prev };
-      delete next[type];
-      return next;
-    });
-  };
-
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.fullName || !form.dob || !form.address || !form.nin) {
-      toast.error("Fill all profile fields.");
+    if (!form.fullName || !form.dob || !form.address || !form.identityNumber.trim()) {
+      toast.error("Fill all required fields.");
       return;
     }
-    if (!identityUploaded) {
-      toast.error("Upload at least one identity document (ID, License, NIN, or Passport).");
+    if (!identityFile) {
+      toast.error("Upload your identity document.");
       return;
     }
-    if (!docsByType.ProofOfAddress) {
-      toast.error("Proof of address is required.");
+    if (!proofOfAddressFile) {
+      toast.error("Proof of address document is required.");
       return;
     }
-
-    const documents = Object.entries(docsByType)
-      .filter(([, file]) => Boolean(file))
-      .map(([type, file]) => ({
-        type: type as DocType,
-        file: file as UploadedFile,
-      }));
 
     try {
       setSubmitting(true);
-      await solarStore.submitKyc({ userId: user.id, ...form, documents });
+      await solarStore.submitKyc({
+        userId: user.id,
+        fullName: form.fullName,
+        dob: form.dob,
+        address: form.address,
+        nin: form.identityNumber.trim(),
+        documents: [
+          { type: form.identityType, file: identityFile },
+          { type: "ProofOfAddress", file: proofOfAddressFile },
+        ],
+      });
       toast.success("KYC submitted for review.");
       navigate("/subsidiaries/solar/dashboard");
     } catch (error: any) {
@@ -142,6 +146,15 @@ const SolarKyc = () => {
           </div>
         </div>
 
+        {existingStatus ? (
+          <div className="mb-5 border border-border bg-surface p-4 flex items-center justify-between">
+            <p className="text-sm">Current KYC Status</p>
+            <Badge variant={existingStatus === "approved" ? "default" : existingStatus === "rejected" ? "destructive" : "secondary"}>
+              {existingStatus}
+            </Badge>
+          </div>
+        ) : null}
+
         <form onSubmit={submit} className="bg-surface border border-border p-6 md:p-8 shadow-card space-y-7">
           <div className="grid md:grid-cols-2 gap-5">
             <Labeled label="Full Legal Name">
@@ -150,8 +163,22 @@ const SolarKyc = () => {
             <Labeled label="Date of Birth">
               <Input type="date" value={form.dob} onChange={(e) => setForm((f) => ({ ...f, dob: e.target.value }))} className="h-11" />
             </Labeled>
-            <Labeled label="NIN Number">
-              <Input value={form.nin} onChange={(e) => setForm((f) => ({ ...f, nin: e.target.value }))} placeholder="National ID Number" className="h-11" />
+            <Labeled label="ID Type">
+              <Select value={form.identityType} onValueChange={(value) => setForm((prev) => ({ ...prev, identityType: value as IdentityType }))}>
+                <SelectTrigger className="h-11">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {ID_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Labeled>
+            <Labeled label="ID Number">
+              <Input value={form.identityNumber} onChange={(e) => setForm((f) => ({ ...f, identityNumber: e.target.value }))} placeholder="Enter selected ID number" className="h-11" />
             </Labeled>
             <Labeled label="Residential Address" className="md:col-span-2">
               <Textarea value={form.address} onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))} rows={2} placeholder="Street, city, state" />
@@ -160,52 +187,30 @@ const SolarKyc = () => {
 
           <div className="space-y-4">
             <div>
-              <p className="text-sm font-semibold">Document Uploads</p>
-              <p className="text-xs text-muted-foreground">Upload one identity document and proof of address.</p>
+              <p className="text-sm font-semibold">Identity Document</p>
+              <p className="text-xs text-muted-foreground">Upload file for the selected ID type.</p>
             </div>
-            <div className="grid md:grid-cols-2 gap-3">
-              {DOC_TYPES.map((entry) => {
-                const doc = docsByType[entry.type];
-                const uploading = uploadingType === entry.type;
-                return (
-                  <div key={entry.type} className="border border-dashed border-border bg-background p-4 flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <FileText className="h-5 w-5 text-primary shrink-0" />
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold">
-                          {entry.label}
-                          {entry.required ? <span className="text-destructive ml-1">*</span> : null}
-                        </p>
-                        {doc ? (
-                          <p className="text-xs text-muted-foreground truncate">
-                            {doc.originalName} - {(doc.size / (1024 * 1024)).toFixed(2)}MB
-                          </p>
-                        ) : (
-                          <p className="text-xs text-muted-foreground">No file</p>
-                        )}
-                      </div>
-                    </div>
-                    {doc ? (
-                      <button type="button" onClick={() => removeDoc(entry.type)} className="h-8 w-8 grid place-items-center text-muted-foreground hover:text-destructive">
-                        <X className="h-4 w-4" />
-                      </button>
-                    ) : (
-                      <label className="cursor-pointer inline-flex items-center gap-1.5 h-8 px-3 text-[10px] font-semibold uppercase tracking-[0.15em] bg-primary hover:bg-primary-glow text-primary-foreground transition-smooth">
-                        {uploading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3" />}
-                        {uploading ? "Uploading..." : "Upload"}
-                        <input
-                          type="file"
-                          accept="image/*,application/pdf"
-                          className="hidden"
-                          onChange={uploadDoc(entry.type)}
-                          disabled={uploading}
-                        />
-                      </label>
-                    )}
-                  </div>
-                );
-              })}
+            <UploadCard
+              label={ID_OPTIONS.find((item) => item.value === form.identityType)?.label ?? "Identity"}
+              file={identityFile}
+              uploading={uploading === "identity"}
+              onUpload={uploadDoc("identity")}
+              onRemove={() => setIdentityFile(null)}
+            />
+          </div>
+
+          <div className="space-y-4 border-t border-border pt-5">
+            <div>
+              <p className="text-sm font-semibold">Proof of Address</p>
+              <p className="text-xs text-muted-foreground">Upload utility bill, tenancy document, or related proof.</p>
             </div>
+            <UploadCard
+              label="Proof of Address"
+              file={proofOfAddressFile}
+              uploading={uploading === "proof"}
+              onUpload={uploadDoc("proof")}
+              onRemove={() => setProofOfAddressFile(null)}
+            />
           </div>
 
           <div className="flex justify-end pt-2 border-t border-border">
@@ -224,6 +229,45 @@ const SolarKyc = () => {
   );
 };
 
+const UploadCard = ({
+  label,
+  file,
+  uploading,
+  onUpload,
+  onRemove,
+}: {
+  label: string;
+  file: UploadedFile | null;
+  uploading: boolean;
+  onUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onRemove: () => void;
+}) => (
+  <div className="border border-dashed border-border bg-background p-4 flex items-center justify-between gap-3">
+    <div className="flex items-center gap-3 min-w-0">
+      <FileText className="h-5 w-5 text-primary shrink-0" />
+      <div className="min-w-0">
+        <p className="text-sm font-semibold">{label}</p>
+        {file ? (
+          <p className="text-xs text-muted-foreground truncate">{file.originalName} - {(file.size / (1024 * 1024)).toFixed(2)}MB</p>
+        ) : (
+          <p className="text-xs text-muted-foreground">No file</p>
+        )}
+      </div>
+    </div>
+    {file ? (
+      <button type="button" onClick={onRemove} className="h-8 w-8 grid place-items-center text-muted-foreground hover:text-destructive">
+        <X className="h-4 w-4" />
+      </button>
+    ) : (
+      <label className="cursor-pointer inline-flex items-center gap-1.5 h-8 px-3 text-[10px] font-semibold uppercase tracking-[0.15em] bg-primary hover:bg-primary-glow text-primary-foreground transition-smooth">
+        {uploading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3" />}
+        {uploading ? "Uploading..." : "Upload"}
+        <input type="file" accept="image/*,application/pdf" className="hidden" onChange={onUpload} disabled={uploading} />
+      </label>
+    )}
+  </div>
+);
+
 const Labeled = ({ label, children, className = "" }: { label: string; children: React.ReactNode; className?: string }) => (
   <div className={className}>
     <label className="text-[11px] font-semibold uppercase tracking-[0.15em] text-muted-foreground mb-2 block">{label}</label>
@@ -232,6 +276,3 @@ const Labeled = ({ label, children, className = "" }: { label: string; children:
 );
 
 export default SolarKyc;
-
-
-
