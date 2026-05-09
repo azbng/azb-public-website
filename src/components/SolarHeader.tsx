@@ -1,13 +1,15 @@
-﻿import { Link, NavLink, useNavigate } from "react-router-dom";
-import { LogIn, LogOut, LayoutDashboard, Menu, X, ShieldCheck } from "lucide-react";
+import { Link, NavLink, useNavigate } from "react-router-dom";
+import { LogIn, LogOut, LayoutDashboard, Menu, X, ShieldCheck, Moon, Sun } from "lucide-react";
 import { useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 import { solarAuth, useSolarUser } from "@/lib/solarAuth";
+import { useTheme } from "@/components/ThemeProvider";
 import logoSolar from "@/assets/logo-solar.png";
 
 const SolarHeader = () => {
   const user = useSolarUser();
   const navigate = useNavigate();
+  const { theme, toggle } = useTheme();
   const [open, setOpen] = useState(false);
 
   const links = useMemo(() => {
@@ -41,44 +43,70 @@ const SolarHeader = () => {
               key={l.to}
               to={l.to}
               end={l.end}
-              className={({ isActive }) => cn(
-                "text-xs font-semibold uppercase tracking-[0.15em] transition-smooth",
-                isActive ? "text-primary" : "text-foreground/70 hover:text-foreground",
-              )}
+              className={({ isActive }) =>
+                cn(
+                  "text-xs font-semibold uppercase tracking-[0.15em] transition-smooth",
+                  isActive ? "text-primary" : "text-foreground/70 hover:text-foreground",
+                )
+              }
             >
               {l.label}
             </NavLink>
           ))}
           {user ? (
-            <NavLink to="/subsidiaries/solar/dashboard" className={({ isActive }) => cn(
-              "text-xs font-semibold uppercase tracking-[0.15em] flex items-center gap-1.5 transition-smooth",
-              isActive ? "text-primary" : "text-foreground/70 hover:text-foreground",
-            )}>
+            <NavLink
+              to="/subsidiaries/solar/dashboard"
+              className={({ isActive }) =>
+                cn(
+                  "text-xs font-semibold uppercase tracking-[0.15em] flex items-center gap-1.5 transition-smooth",
+                  isActive ? "text-primary" : "text-foreground/70 hover:text-foreground",
+                )
+              }
+            >
               <LayoutDashboard className="h-3.5 w-3.5" /> Dashboard
             </NavLink>
           ) : null}
           {user?.role === "admin" ? (
-            <NavLink to="/subsidiaries/solar/admin" className={({ isActive }) => cn(
-              "text-xs font-semibold uppercase tracking-[0.15em] flex items-center gap-1.5 transition-smooth",
-              isActive ? "text-primary" : "text-foreground/70 hover:text-foreground",
-            )}>
+            <NavLink
+              to="/subsidiaries/solar/admin"
+              className={({ isActive }) =>
+                cn(
+                  "text-xs font-semibold uppercase tracking-[0.15em] flex items-center gap-1.5 transition-smooth",
+                  isActive ? "text-primary" : "text-foreground/70 hover:text-foreground",
+                )
+              }
+            >
               <ShieldCheck className="h-3.5 w-3.5" /> Admin
             </NavLink>
           ) : null}
         </nav>
 
         <div className="flex items-center gap-2">
+          <button
+            onClick={toggle}
+            aria-label="Toggle theme"
+            className="h-9 w-9 grid place-items-center border border-border hover:border-primary text-foreground/80 transition-smooth"
+          >
+            {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+          </button>
+
           {user ? (
             <>
               <span className="hidden sm:inline text-xs text-muted-foreground">
                 {user.fullName} {user.role === "admin" ? <span className="ml-1 text-primary">(admin)</span> : null}
               </span>
-              <button onClick={signOut} className="inline-flex items-center gap-1.5 h-9 px-3 text-xs font-semibold uppercase tracking-[0.15em] border border-border hover:border-primary text-foreground/80 transition-smooth">
+              <button
+                onClick={signOut}
+                className="inline-flex items-center gap-1.5 h-9 px-3 text-xs font-semibold uppercase tracking-[0.15em] border border-border hover:border-primary text-foreground/80 transition-smooth"
+              >
                 <LogOut className="h-3.5 w-3.5" /> Sign Out
               </button>
             </>
           ) : (
-            <Link to="/subsidiaries/solar/auth" className="inline-flex items-center gap-1.5 h-9 px-4 text-xs font-semibold uppercase tracking-[0.15em] bg-primary hover:bg-primary-glow text-primary-foreground transition-smooth shadow-elegant">
+            <Link
+              to="/subsidiaries/solar/auth"
+              className="inline-flex items-center gap-1.5 h-9 px-4 text-xs font-semibold uppercase tracking-[0.15em] bg-primary hover:bg-primary-glow text-primary-foreground transition-smooth shadow-elegant"
+            >
               <LogIn className="h-3.5 w-3.5" /> Sign In
             </Link>
           )}
@@ -103,12 +131,20 @@ const SolarHeader = () => {
               </NavLink>
             ))}
             {user ? (
-              <NavLink to="/subsidiaries/solar/dashboard" onClick={() => setOpen(false)} className={({ isActive }) => cn("py-2 text-sm font-medium", isActive ? "text-primary" : "text-foreground/80")}>
+              <NavLink
+                to="/subsidiaries/solar/dashboard"
+                onClick={() => setOpen(false)}
+                className={({ isActive }) => cn("py-2 text-sm font-medium", isActive ? "text-primary" : "text-foreground/80")}
+              >
                 Dashboard
               </NavLink>
             ) : null}
             {user?.role === "admin" ? (
-              <NavLink to="/subsidiaries/solar/admin" onClick={() => setOpen(false)} className={({ isActive }) => cn("py-2 text-sm font-medium", isActive ? "text-primary" : "text-foreground/80")}>
+              <NavLink
+                to="/subsidiaries/solar/admin"
+                onClick={() => setOpen(false)}
+                className={({ isActive }) => cn("py-2 text-sm font-medium", isActive ? "text-primary" : "text-foreground/80")}
+              >
                 Admin
               </NavLink>
             ) : null}
@@ -120,6 +156,3 @@ const SolarHeader = () => {
 };
 
 export default SolarHeader;
-
-
-
