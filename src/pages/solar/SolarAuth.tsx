@@ -49,9 +49,9 @@ const SolarAuth = () => {
     }
     setLoading(true);
     try {
-      await solarAuth.signUpEmail(signUp.email, signUp.password, signUp.name);
-      toast.success("Account created");
-      navigate("/subsidiaries/solar/kyc");
+      const response = await solarAuth.signUpEmail(signUp.email, signUp.password, signUp.name);
+      toast.success(response.message || "Account created. Please verify your email.");
+      setSignUp({ name: "", email: "", password: "", confirm: "" });
     } catch (error: any) {
       toast.error(error?.message || "Sign up failed");
     } finally {

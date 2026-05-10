@@ -196,16 +196,21 @@ export const solarAuth = {
     return user;
   },
 
-  async signUpEmail(email: string, password: string, fullName: string): Promise<SolarUser> {
-    const data = await apiFetch<{ token: string; user: Omit<SolarUser, "role"> }>(
+  async signUpEmail(email: string, password: string, fullName: string): Promise<{ requiresEmailVerification: boolean; message: string }> {
+    const data = await apiFetch<{ requiresEmailVerification: boolean; message: string }>(
       "/auth/signup",
       { method: "POST", body: JSON.stringify({ email, password, fullName }) },
       false,
     );
-    const user = withRole(data.user);
-    saveSession(data.token, user);
-    emit();
-    return user;
+    return data;
+  },
+
+  async verifyEmail(token: string) {
+    await apiFetch<void>(
+      "/auth/verify-email",
+      { method: "POST", body: JSON.stringify({ token }) },
+      false,
+    );
   },
 
   async signInGoogle(idToken: string): Promise<SolarUser> {
@@ -407,6 +412,14 @@ export const solarStore = {
 
   async markNotificationRead(notificationId: string) {
     await apiFetch<void>(`/notifications/${notificationId}/read`, { method: "POST" });
+  },
+
+  async markAllNotificationsRead() {
+    await apiFetch<void>("/notifications/read-all", { method: "POST" });
+  },
+
+  async clearNotifications() {
+    await apiFetch<void>("/notifications/clear", { method: "DELETE" });
   },
 };
 

@@ -16,6 +16,7 @@ import Contact from "./pages/Contact.tsx";
 import NotFound from "./pages/NotFound.tsx";
 import SolarLayout from "./pages/solar/SolarLayout.tsx";
 import SolarAuth from "./pages/solar/SolarAuth.tsx";
+import SolarVerifyEmail from "./pages/solar/SolarVerifyEmail.tsx";
 import SolarDashboard from "./pages/solar/SolarDashboard.tsx";
 import SolarKyc from "./pages/solar/SolarKyc.tsx";
 import SolarLoan from "./pages/solar/SolarLoan.tsx";
@@ -50,6 +51,7 @@ const App = () => (
                 <Route path="/subsidiaries/solar" element={<SolarLayout />}>
                   <Route index element={<SubsidiaryDetail />} />
                   <Route path="auth" element={<SolarAuth />} />
+                  <Route path="auth/verify-email" element={<SolarVerifyEmail />} />
                   <Route path="dashboard" element={<SolarRequireAuth><SolarDashboard /></SolarRequireAuth>} />
                   <Route path="kyc" element={<SolarRequireAuth><SolarKyc /></SolarRequireAuth>} />
                   <Route path="loan" element={<SolarRequireAuth><SolarLoan /></SolarRequireAuth>} />

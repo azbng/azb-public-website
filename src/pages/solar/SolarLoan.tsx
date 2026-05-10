@@ -6,6 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import {
   Drawer,
   DrawerClose,
@@ -63,6 +64,7 @@ const SolarLoan = () => {
   });
   const [attachments, setAttachments] = useState<DraftAttachment[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const [confirmSubmitOpen, setConfirmSubmitOpen] = useState(false);
 
   const latestLoan = useMemo(() => loans[0] ?? null, [loans]);
 
@@ -115,8 +117,8 @@ const SolarLoan = () => {
     }
   };
 
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const submitConfirmed = async () => {
+    setConfirmSubmitOpen(false);
     const required = ["applicantName", "email", "phone", "capacityKw", "amount", "collateral", "bank", "monthlyIncome", "purpose"] as const;
     for (const k of required) {
       if (!String(f[k]).trim()) {
@@ -166,6 +168,11 @@ const SolarLoan = () => {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setConfirmSubmitOpen(true);
   };
 
   return (
@@ -329,6 +336,23 @@ const SolarLoan = () => {
             </div>
           </form>
         )}
+
+        <AlertDialog open={confirmSubmitOpen} onOpenChange={setConfirmSubmitOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Submit Loan Application?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Confirm you want to submit this solar loan application for review.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={submitting}>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={() => void submitConfirmed()} disabled={submitting}>
+                Confirm Submission
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         <Drawer open={Boolean(selectedLoan)} onOpenChange={(open) => !open && setSelectedLoan(null)}>
           <DrawerContent className="max-h-[90vh]">

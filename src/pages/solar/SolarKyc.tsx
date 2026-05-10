@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { UploadedFile, useSolarUser, solarStore } from "@/lib/solarAuth";
 
@@ -31,6 +32,7 @@ const SolarKyc = () => {
   const [proofOfAddressFile, setProofOfAddressFile] = useState<UploadedFile | null>(null);
   const [uploading, setUploading] = useState<"identity" | "proof" | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [confirmSubmitOpen, setConfirmSubmitOpen] = useState(false);
   const [existingStatus, setExistingStatus] = useState<"pending" | "approved" | "rejected" | null>(null);
 
   useEffect(() => {
@@ -90,8 +92,8 @@ const SolarKyc = () => {
     }
   };
 
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const submitConfirmed = async () => {
+    setConfirmSubmitOpen(false);
     if (!form.fullName || !form.dob || !form.address || !form.identityNumber.trim()) {
       toast.error("Fill all required fields.");
       return;
@@ -125,6 +127,11 @@ const SolarKyc = () => {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setConfirmSubmitOpen(true);
   };
 
   return (
@@ -224,6 +231,23 @@ const SolarKyc = () => {
             </button>
           </div>
         </form>
+
+        <AlertDialog open={confirmSubmitOpen} onOpenChange={setConfirmSubmitOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Submit KYC Request?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Please confirm you want to submit this KYC information for review.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={submitting}>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={() => void submitConfirmed()} disabled={submitting}>
+                Confirm Submission
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </section>
   );

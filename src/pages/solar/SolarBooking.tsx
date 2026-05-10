@@ -6,6 +6,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import {
   Drawer,
   DrawerClose,
@@ -71,6 +72,7 @@ const SolarBooking = () => {
   const [loadingBookings, setLoadingBookings] = useState(true);
   const [selectedBooking, setSelectedBooking] = useState<EnergyBooking | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [confirmSubmitOpen, setConfirmSubmitOpen] = useState(false);
 
   const [range, setRange] = useState<DateRange | undefined>();
   const [lgas, setLgas] = useState<string[]>(FALLBACK_LGA_BY_STATE.Kano ?? []);
@@ -140,8 +142,8 @@ const SolarBooking = () => {
     ? Math.max(1, Math.round((+range.to - +range.from) / 86400000) + 1)
     : range?.from ? 1 : 0;
 
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const submitConfirmed = async () => {
+    setConfirmSubmitOpen(false);
     if (!range?.from) return toast.error("Pick a start date.");
     if (!form.applicantName || !form.phone || !form.capacityKw || !form.state || !form.addressLine) {
       return toast.error("Fill all required fields.");
@@ -175,6 +177,11 @@ const SolarBooking = () => {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setConfirmSubmitOpen(true);
   };
 
   return (
@@ -320,6 +327,23 @@ const SolarBooking = () => {
             </form>
           </div>
         )}
+
+        <AlertDialog open={confirmSubmitOpen} onOpenChange={setConfirmSubmitOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Submit Booking Request?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Confirm you want to submit this mobile energy booking request.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={submitting}>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={() => void submitConfirmed()} disabled={submitting}>
+                Confirm Submission
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         <Drawer open={Boolean(selectedBooking)} onOpenChange={(open) => !open && setSelectedBooking(null)}>
           <DrawerContent className="max-h-[90vh]">
