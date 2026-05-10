@@ -1,5 +1,5 @@
 ﻿import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { ShieldCheck, FileText, CalendarDays, ArrowRight, CheckCircle2, Clock, XCircle, User2, Bell } from "lucide-react";
 import { KycSubmission, LoanApplication, EnergyBooking, PortalNotification, useSolarUser, solarStore } from "@/lib/solarAuth";
 
@@ -10,8 +10,8 @@ const StatusBadge = ({ status }: { status: string }) => {
     under_review: { icon: <Clock className="h-3 w-3" />, cls: "bg-accent/15 text-accent border-accent/40", label: "Under Review" },
     approved: { icon: <CheckCircle2 className="h-3 w-3" />, cls: "bg-emerald-500/15 text-emerald-500 border-emerald-500/40", label: "Approved" },
     confirmed: { icon: <CheckCircle2 className="h-3 w-3" />, cls: "bg-emerald-500/15 text-emerald-500 border-emerald-500/40", label: "Confirmed" },
+    completed: { icon: <CheckCircle2 className="h-3 w-3" />, cls: "bg-emerald-700/15 text-emerald-700 border-emerald-700/40", label: "Completed" },
     rejected: { icon: <XCircle className="h-3 w-3" />, cls: "bg-destructive/15 text-destructive border-destructive/40", label: "Rejected" },
-    cancelled: { icon: <XCircle className="h-3 w-3" />, cls: "bg-muted text-muted-foreground border-border", label: "Cancelled" },
   };
   const m = map[status] ?? map.pending;
   return <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] border ${m.cls}`}>{m.icon}{m.label}</span>;
@@ -19,6 +19,7 @@ const StatusBadge = ({ status }: { status: string }) => {
 
 const SolarDashboard = () => {
   const user = useSolarUser()!;
+  const navigate = useNavigate();
   const [kyc, setKyc] = useState<KycSubmission | null>(null);
   const [loans, setLoans] = useState<LoanApplication[]>([]);
   const [bookings, setBookings] = useState<EnergyBooking[]>([]);
@@ -67,6 +68,14 @@ const SolarDashboard = () => {
     () => bookings.filter((item) => item.status === "confirmed").length,
     [bookings],
   );
+  const resolveNotificationPath = (item: PortalNotification) => {
+    const type = item.type || "";
+    const data = item.data && typeof item.data === "object" ? (item.data as Record<string, unknown>) : {};
+    if (type.includes("kyc") || data.applicationType === "kyc") return "/subsidiaries/solar/kyc";
+    if (type.includes("loan") || data.applicationType === "loan") return "/subsidiaries/solar/loan";
+    if (type.includes("booking") || data.applicationType === "booking") return "/subsidiaries/solar/booking";
+    return "/subsidiaries/solar/dashboard";
+  };
 
   return (
     <section className="section-py bg-background min-h-[calc(100vh-8.5rem)]">
@@ -137,7 +146,7 @@ const SolarDashboard = () => {
               </div>
             ) : (
               <div>
-                <p className="text-sm text-muted-foreground mb-4">Complete KYC to unlock loan and booking services.</p>
+                <p className="text-sm text-muted-foreground mb-4">Complete KYC only when you want to apply for a solar loan. Energy booking does not require KYC.</p>
                 <Link to="/subsidiaries/solar/kyc" className="inline-flex items-center gap-2 bg-primary hover:bg-primary-glow text-primary-foreground h-10 px-5 text-xs font-semibold uppercase tracking-[0.15em] transition-smooth">
                   Start KYC <ArrowRight className="h-4 w-4" />
                 </Link>
@@ -169,9 +178,11 @@ const SolarDashboard = () => {
               key={item.id}
               type="button"
               onClick={async () => {
-                if (item.isRead) return;
-                await solarStore.markNotificationRead(item.id);
-                setNotifications((prev) => prev.map((entry) => (entry.id === item.id ? { ...entry, isRead: true } : entry)));
+                if (!item.isRead) {
+                  await solarStore.markNotificationRead(item.id);
+                  setNotifications((prev) => prev.map((entry) => (entry.id === item.id ? { ...entry, isRead: true } : entry)));
+                }
+                navigate(resolveNotificationPath(item));
               }}
               className={`w-full text-left border p-4 ${item.isRead ? "border-border bg-background" : "border-primary/40 bg-primary/5"}`}
             >
@@ -186,7 +197,7 @@ const SolarDashboard = () => {
           {loans.map((l) => (
             <div key={l.id} className="flex items-center justify-between border border-border bg-background p-4">
               <div>
-                <p className="font-semibold text-sm">NGN {l.amount.toLocaleString()} - {l.capacityKw} kW - {l.tenureMonths} months</p>
+                <p className="font-semibold text-sm">{l.amount && l.amount > 0 ? `NGN ${l.amount.toLocaleString()}` : "Amount to be set by admin"} - {l.capacityKw} kW - {l.tenureMonths} months</p>
                 <p className="text-xs text-muted-foreground">{new Date(l.submittedAt).toLocaleString()}</p>
               </div>
               <StatusBadge status={l.status} />

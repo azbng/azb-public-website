@@ -55,14 +55,18 @@ async function fetchLgas(state: string): Promise<string[]> {
 
 const statusBadgeVariant = (status: EnergyBooking["status"]) => {
   if (status === "confirmed") return "default";
-  if (status === "cancelled") return "destructive";
+  if (status === "approved") return "secondary";
+  if (status === "rejected") return "destructive";
+  if (status === "completed") return "default";
   return "secondary";
 };
 
 const statusTimelineLabels: Record<EnergyBooking["status"], string> = {
   pending: "Booking submitted",
-  confirmed: "Booking confirmed",
-  cancelled: "Booking cancelled",
+  approved: "Approved - awaiting payment",
+  confirmed: "Payment confirmed - service scheduled",
+  completed: "Service completed",
+  rejected: "Booking rejected",
 };
 
 const SolarBooking = () => {
@@ -126,7 +130,7 @@ const SolarBooking = () => {
 
   const bookedDates = useMemo(() => {
     const out: Date[] = [];
-    for (const b of bookings.filter((item) => item.status !== "cancelled")) {
+    for (const b of bookings.filter((item) => item.status !== "rejected")) {
       const s = new Date(b.startDate);
       const e = new Date(b.endDate);
       const cur = new Date(s);
@@ -228,7 +232,7 @@ const SolarBooking = () => {
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Badge variant={statusBadgeVariant(booking.status)}>{booking.status}</Badge>
+                      <Badge variant={statusBadgeVariant(booking.status)}>{booking.statusLabel || booking.status}</Badge>
                       <ChevronRight className="h-4 w-4 text-muted-foreground" />
                     </div>
                   </button>
@@ -360,7 +364,7 @@ const SolarBooking = () => {
                   <div className="border border-border bg-surface p-4 grid md:grid-cols-2 gap-3">
                     <InfoRow label="Applicant" value={selectedBooking.applicantName} />
                     <InfoRow label="Phone" value={selectedBooking.phone} />
-                    <InfoRow label="Status" value={selectedBooking.status} />
+                    <InfoRow label="Status" value={selectedBooking.statusLabel || selectedBooking.status} />
                     <InfoRow label="Capacity" value={`${selectedBooking.capacityKw} kW`} />
                     <InfoRow label="Start" value={`${new Date(selectedBooking.startDate).toLocaleDateString()} ${selectedBooking.startTime}`} />
                     <InfoRow label="End" value={`${new Date(selectedBooking.endDate).toLocaleDateString()} ${selectedBooking.endTime}`} />

@@ -46,6 +46,7 @@ const SolarLoan = () => {
   const user = useSolarUser()!;
   const navigate = useNavigate();
   const [view, setView] = useState<"list" | "apply">("list");
+  const [kycApproved, setKycApproved] = useState(false);
   const [loans, setLoans] = useState<LoanApplication[]>([]);
   const [loadingLoans, setLoadingLoans] = useState(true);
   const [selectedLoan, setSelectedLoan] = useState<LoanApplication | null>(null);
@@ -55,7 +56,6 @@ const SolarLoan = () => {
     email: user.email,
     phone: "",
     capacityKw: "",
-    amount: "",
     tenureMonths: "12",
     collateral: "",
     bank: "",
@@ -81,7 +81,13 @@ const SolarLoan = () => {
   };
 
   useEffect(() => {
-    loadLoans();
+    Promise.all([loadLoans(), solarStore.myKyc(user.id)])
+      .then(([, kyc]) => {
+        setKycApproved(Boolean(kyc && kyc.status === "approved"));
+      })
+      .catch(() => {
+        setKycApproved(false);
+      });
   }, [user.id]);
 
   const addAttachmentRow = () => {
@@ -119,7 +125,11 @@ const SolarLoan = () => {
 
   const submitConfirmed = async () => {
     setConfirmSubmitOpen(false);
-    const required = ["applicantName", "email", "phone", "capacityKw", "amount", "collateral", "bank", "monthlyIncome", "purpose"] as const;
+    if (!kycApproved) {
+      toast.error("KYC approval is required before submitting a loan application.");
+      return;
+    }
+    const required = ["applicantName", "email", "phone", "capacityKw", "collateral", "bank", "monthlyIncome", "purpose"] as const;
     for (const k of required) {
       if (!String(f[k]).trim()) {
         toast.error("Please fill all required fields.");
@@ -151,7 +161,6 @@ const SolarLoan = () => {
         email: f.email,
         phone: f.phone,
         capacityKw: Number(f.capacityKw),
-        amount: Number(f.amount),
         tenureMonths: Number(f.tenureMonths),
         collateral: f.collateral,
         bank: f.bank,
@@ -205,7 +214,7 @@ const SolarLoan = () => {
                 <div>
                   <p className="text-sm font-semibold">Latest Application</p>
                   <p className="text-xs text-muted-foreground">
-                    NGN {latestLoan.amount.toLocaleString()} - {latestLoan.capacityKw} kW - {latestLoan.tenureMonths} months
+                    {latestLoan.amount && latestLoan.amount > 0 ? `NGN ${latestLoan.amount.toLocaleString()}` : "Amount to be set by admin"} - {latestLoan.capacityKw} kW - {latestLoan.tenureMonths} months
                   </p>
                 </div>
                 <Badge variant={statusBadgeVariant(latestLoan.status)}>{latestLoan.status.replace("_", " ")}</Badge>
@@ -230,7 +239,7 @@ const SolarLoan = () => {
                       className="w-full px-4 py-4 flex flex-wrap items-center justify-between gap-3 text-left hover:bg-muted/40 transition-colors"
                     >
                       <div>
-                        <p className="text-sm font-semibold">NGN {loan.amount.toLocaleString()} - {loan.capacityKw} kW</p>
+                        <p className="text-sm font-semibold">{loan.amount && loan.amount > 0 ? `NGN ${loan.amount.toLocaleString()}` : "Amount to be set by admin"} - {loan.capacityKw} kW</p>
                         <p className="text-xs text-muted-foreground">{new Date(loan.submittedAt).toLocaleString()}</p>
                       </div>
                       <div className="flex items-center gap-2">
@@ -241,6 +250,16 @@ const SolarLoan = () => {
                   ))}
                 </div>
               )}
+            </div>
+          </div>
+        ) : !kycApproved ? (
+          <div className="border border-border bg-surface p-6 md:p-8 shadow-card space-y-4">
+            <h2 className="text-xl font-bold">KYC Approval Required</h2>
+            <p className="text-sm text-muted-foreground">
+              Solar loan applications require approved KYC. Complete your KYC first, then return to apply.
+            </p>
+            <div>
+              <Button onClick={() => navigate("/subsidiaries/solar/kyc")}>Go to KYC</Button>
             </div>
           </div>
         ) : (
@@ -254,7 +273,6 @@ const SolarLoan = () => {
 
             <Section title="Solar System">
               <Field label="Capacity (kW)"><Input type="number" min="0" step="0.1" value={f.capacityKw} onChange={(e) => setF((s) => ({ ...s, capacityKw: e.target.value }))} className="h-11" /></Field>
-              <Field label="Loan Amount (NGN)"><Input type="number" min="0" value={f.amount} onChange={(e) => setF((s) => ({ ...s, amount: e.target.value }))} className="h-11" /></Field>
               <Field label="Tenure">
                 <Select value={f.tenureMonths} onValueChange={(v) => setF((s) => ({ ...s, tenureMonths: v }))}>
                   <SelectTrigger className="h-11"><SelectValue /></SelectTrigger>
@@ -314,7 +332,7 @@ const SolarLoan = () => {
                           {item.uploading ? "Uploading..." : "Upload"}
                           <input
                             type="file"
-                            accept="image/*,application/pdf"
+                            accept="image/*,application/pdf,.doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                             className="hidden"
                             onChange={uploadAttachmentFile(item.id)}
                             disabled={item.uploading}
@@ -371,7 +389,7 @@ const SolarLoan = () => {
                     <InfoRow label="Email" value={selectedLoan.email} />
                     <InfoRow label="Phone" value={selectedLoan.phone} />
                     <InfoRow label="Status" value={selectedLoan.status.replace("_", " ")} />
-                    <InfoRow label="Requested Amount" value={`NGN ${selectedLoan.amount.toLocaleString()}`} />
+                    <InfoRow label="Requested Amount" value={selectedLoan.amount && selectedLoan.amount > 0 ? `NGN ${selectedLoan.amount.toLocaleString()}` : "To be determined by admin"} />
                     <InfoRow label="Capacity" value={`${selectedLoan.capacityKw} kW`} />
                     <InfoRow label="Tenure" value={`${selectedLoan.tenureMonths} months`} />
                     <InfoRow label="Monthly Income" value={`NGN ${selectedLoan.monthlyIncome.toLocaleString()}`} />

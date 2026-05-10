@@ -286,7 +286,7 @@ const UploadCard = ({
       <label className="cursor-pointer inline-flex items-center gap-1.5 h-8 px-3 text-[10px] font-semibold uppercase tracking-[0.15em] bg-primary hover:bg-primary-glow text-primary-foreground transition-smooth">
         {uploading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3" />}
         {uploading ? "Uploading..." : "Upload"}
-        <input type="file" accept="image/*,application/pdf" className="hidden" onChange={onUpload} disabled={uploading} />
+        <input type="file" accept="image/*,application/pdf,.doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" className="hidden" onChange={onUpload} disabled={uploading} />
       </label>
     )}
   </div>

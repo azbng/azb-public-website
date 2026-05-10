@@ -46,7 +46,7 @@ export type LoanApplication = {
   email: string;
   phone: string;
   capacityKw: number;
-  amount: number;
+  amount: number | null;
   tenureMonths: number;
   collateral: string;
   bank: string;
@@ -69,7 +69,10 @@ export type EnergyBooking = {
   capacityKw: number;
   location: string;
   notes?: string;
-  status: "pending" | "confirmed" | "cancelled";
+  status: "pending" | "approved" | "confirmed" | "completed" | "rejected";
+  statusLabel?: string;
+  paymentConfirmedAt?: string | null;
+  serviceCompletedAt?: string | null;
   submittedAt: string;
 };
 
@@ -87,18 +90,33 @@ export type PortalNotification = {
 const K = {
   token: "solar.portal.token",
   user: "solar.portal.user",
+  lastActivityAt: "solar.portal.lastActivityAt",
 };
+const SOLAR_IDLE_TIMEOUT_MS = 3 * 60 * 60 * 1000;
 
 const emit = () => window.dispatchEvent(new Event("solar-auth-change"));
+
+function touchActivity() {
+  localStorage.setItem(K.lastActivityAt, String(Date.now()));
+}
+
+function activityExpired() {
+  const raw = localStorage.getItem(K.lastActivityAt);
+  const lastSeen = raw ? Number(raw) : 0;
+  if (!lastSeen) return false;
+  return Date.now() - lastSeen > SOLAR_IDLE_TIMEOUT_MS;
+}
 
 function saveSession(token: string, user: SolarUser) {
   localStorage.setItem(K.token, token);
   localStorage.setItem(K.user, JSON.stringify(user));
+  touchActivity();
 }
 
 function clearSession() {
   localStorage.removeItem(K.token);
   localStorage.removeItem(K.user);
+  localStorage.removeItem(K.lastActivityAt);
 }
 
 function readSessionUser(): SolarUser | null {
@@ -118,6 +136,11 @@ async function apiFetch<T>(path: string, init: RequestInit = {}, requiresAuth = 
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), runtimeConfig.apiTimeoutMs);
   const token = authToken();
+  if (requiresAuth && token && activityExpired()) {
+    clearSession();
+    emit();
+    throw new Error("Session expired. Please sign in again.");
+  }
 
   const headers: Record<string, string> = {
     ...(init.headers as Record<string, string> | undefined),
@@ -135,9 +158,14 @@ async function apiFetch<T>(path: string, init: RequestInit = {}, requiresAuth = 
       signal: controller.signal,
     });
     if (!res.ok) {
+      if (res.status === 401 && requiresAuth) {
+        clearSession();
+        emit();
+      }
       const body = await res.json().catch(() => ({}));
       throw new Error(body?.message || "Request failed");
     }
+    if (requiresAuth && token) touchActivity();
     if (res.status === 204) return undefined as T;
     return (await res.json()) as T;
   } finally {
@@ -310,7 +338,7 @@ export const solarStore = {
       email: item.email,
       phone: item.phone,
       capacityKw: Number(item.capacityKw || 0),
-      amount: Number(item.amount || 0),
+      amount: item.amount == null ? null : Number(item.amount),
       tenureMonths: Number(item.tenureMonths || 0),
       collateral: item.collateral || "",
       bank: item.bank || "",
@@ -345,7 +373,6 @@ export const solarStore = {
         email: l.email,
         phone: l.phone,
         capacityKw: l.capacityKw,
-        amount: l.amount,
         tenureMonths: l.tenureMonths,
         collateral: l.collateral,
         bank: l.bank,
@@ -376,6 +403,9 @@ export const solarStore = {
       location: item.location || "",
       notes: item.notes || "",
       status: item.status,
+      statusLabel: item.statusLabel || undefined,
+      paymentConfirmedAt: item.paymentConfirmedAt || null,
+      serviceCompletedAt: item.serviceCompletedAt || null,
       submittedAt: item.submittedAt,
     }));
   },
@@ -427,12 +457,25 @@ export function useSolarUser() {
   const [user, setUser] = useState<SolarUser | null>(() => solarAuth.current());
   useEffect(() => {
     const sync = () => setUser(solarAuth.current());
+    const activityEvents: Array<keyof WindowEventMap> = ["click", "keydown", "mousemove", "scroll", "touchstart"];
+    const handleActivity = () => {
+      if (solarAuth.current()) touchActivity();
+    };
+    const expiryTicker = window.setInterval(() => {
+      if (!solarAuth.current()) return;
+      if (!activityExpired()) return;
+      clearSession();
+      emit();
+    }, 60_000);
     window.addEventListener("solar-auth-change", sync);
     window.addEventListener("storage", sync);
+    activityEvents.forEach((eventName) => window.addEventListener(eventName, handleActivity, { passive: true }));
     solarAuth.restore().then((restored) => setUser(restored));
     return () => {
       window.removeEventListener("solar-auth-change", sync);
       window.removeEventListener("storage", sync);
+      activityEvents.forEach((eventName) => window.removeEventListener(eventName, handleActivity));
+      window.clearInterval(expiryTicker);
     };
   }, []);
   return user;
